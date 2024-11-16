@@ -60,9 +60,20 @@ def triangulation(
         kp1: typing.Sequence[cv2.KeyPoint],
         kp2: typing.Sequence[cv2.KeyPoint],
         matches: typing.Sequence[cv2.DMatch]
-):
-    pass
-    # YOUR CODE HERE
+) -> np.ndarray:
+    # firstly we convert translation vectors and rotation matrices to projection matrices
+    P1 = camera_matrix @ np.hstack((camera1_rotation_matrix, camera1_translation_vector))
+    P2 = camera_matrix @ np.hstack((camera2_rotation_matrix, camera2_translation_vector))
+
+    # getting corresponding image points
+    points1 = np.array([kp1[match.queryIdx].pt for match in matches])
+    points2 = np.array([kp2[match.trainIdx].pt for match in matches])
+
+    points_4d_hom = cv2.triangulatePoints(P1, P2, points1.T, points2.T)
+
+    points_3d = points_4d_hom[:3] / points_4d_hom[3]
+
+    return points_3d.T
 
 
 # Task 4
@@ -74,12 +85,15 @@ def resection(
         points_3d
 ):
     pass
-    # YOUR CODE HERE
 
 
+# Task 5
 def convert_to_world_frame(translation_vector, rotation_matrix):
-    pass
-    # YOUR CODE HERE
+    rotation_matrix_transpose = rotation_matrix.T
+    camera_position = -rotation_matrix_transpose @ translation_vector
+    camera_orientation = rotation_matrix_transpose
+
+    return camera_position, camera_orientation
 
 
 def visualisation(
@@ -90,7 +104,6 @@ def visualisation(
         camera_position3: np.ndarray,
         camera_rotation3: np.ndarray,
 ):
-
     def plot_camera(ax, position, direction, label):
         color_scatter = 'blue' if label != 'Camera 3' else 'green'
         # print(position)
@@ -100,7 +113,6 @@ def visualisation(
         ax.quiver(position[0][0], position[1][0], position[2][0], direction[0], direction[1], direction[2],
                   length=1, color=color_quiver, arrow_length_ratio=0.2)
         ax.text(position[0][0], position[1][0], position[2][0], label, color='black')
-
 
     camera_positions = [camera_position1, camera_position2, camera_position3]
     camera_directions = [camera_rotation1[:, 2], camera_rotation2[:, 2], camera_rotation3[:, 2]]
@@ -130,7 +142,6 @@ def visualisation(
     ax_azim_slider = plt.axes([0.1, 0.05, 0.65, 0.03])
     azim_slider = Slider(ax_azim_slider, 'Azim', 0, 360, valinit=initial_azim)
 
-
     def update(val):
         elev = elev_slider.val
         azim = azim_slider.val
@@ -155,7 +166,7 @@ def main():
     R2, t2, E = get_second_camera_position(key_points1, key_points2, matches_1_to_2, camera_matrix)
     triangulated_points = triangulation(
         camera_matrix,
-        np.array([0, 0, 0]).reshape((3,1)),
+        np.array([0, 0, 0]).reshape((3, 1)),
         np.eye(3),
         t2,
         R2,
@@ -165,7 +176,7 @@ def main():
     )
 
     R3, t3 = resection(image1, image3, camera_matrix, matches_1_to_2, triangulated_points)
-    camera_position1, camera_rotation1 = convert_to_world_frame(np.array([0, 0, 0]).reshape((3,1)), np.eye(3))
+    camera_position1, camera_rotation1 = convert_to_world_frame(np.array([0, 0, 0]).reshape((3, 1)), np.eye(3))
     camera_position2, camera_rotation2 = convert_to_world_frame(t2, R2)
     camera_position3, camera_rotation3 = convert_to_world_frame(t3, R3)
     visualisation(
@@ -176,6 +187,7 @@ def main():
         camera_position3,
         camera_rotation3
     )
+
 
 if __name__ == "__main__":
     main()
